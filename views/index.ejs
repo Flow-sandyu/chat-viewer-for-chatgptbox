@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天记录查看器 - 主页 (Chat Log Viewer - Home)</title>
+    <style>
+        /* (和之前的 CSS 类似，可以复用或单独放在 public/style.css) */
+        /* (Similar to previous CSS, can be reused or put in public/style.css) */
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .search-form { margin-bottom: 20px; display: flex; gap: 10px; }
+        .search-form input[type="text"] { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .search-form button { padding: 10px 15px; background-color: #5cb85c; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+        .search-form button:hover { background-color: #4cae4c; }
+        .chat-list ul { list-style: none; padding: 0; }
+        .chat-list li { background-color: #f9f9f9; margin-bottom: 10px; padding: 15px; border-radius: 5px; border: 1px solid #eee; transition: background-color 0.2s ease; }
+        .chat-list li:hover { background-color: #f0f0f0; }
+        .chat-list a { text-decoration: none; color: #337ab7; font-weight: bold; display: block; }
+        .chat-list .chat-id { font-size: 0.9em; color: #777; margin-top: 5px; }
+        mark { background-color: yellow; padding: 0.2em; } /* 高亮样式 */ /* Highlight style */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>聊天记录查看器 (Chat Log Viewer)</h1>
+
+        <form action="/" method="get" class="search-form">
+            <input type="text" name="search" placeholder="全局搜索聊天名称或内容... (Globally search chat names or content...)" value="<%= searchQuery %>">
+            <button type="submit">全局搜索 (Global Search)</button>
+            <% if (searchQuery) { %>
+                <a href="/" class="clear-search-btn" style="padding: 10px 15px; background-color: #f0ad4e; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; line-height: normal; text-align: center;">清除 (Clear)</a>
+            <% } %>
+        </form>
+
+        <hr>
+
+        <h2>所有聊天 (All Chats)</h2>
+        <div class="chat-list">
+            <% if (sessions.length > 0) { %>
+                <ul>
+                    <% sessions.forEach(session => { %>
+                        <li>
+                            <a href="/chat/<%= session.sessionId %>">
+                                <%- highlighter(session.sessionName || '未命名会话 (Unnamed Session)', searchQuery) %>
+                            </a>
+                            <div class="chat-id">
+                                ID: <%- highlighter(session.sessionId, searchQuery) %>
+                            </div>
+                            <% if (searchQuery) { %>
+                                <%
+                                const firstMatch = session.conversationRecords.find(r =>
+                                    (r.question && r.question.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                                    (r.answer && r.answer.toLowerCase().includes(searchQuery.toLowerCase()))
+                                );
+                                %>
+                                <% if (firstMatch) { %>
+                                    <p style="font-size: 0.9em; color: #555; margin-top: 5px;">
+                                        <i>匹配内容预览 (Match Preview):</i> ...
+                                        <% if (firstMatch.question && firstMatch.question.toLowerCase().includes(searchQuery.toLowerCase())) { %>
+                                            <%- highlighter(firstMatch.question.substring(0, 100) + (firstMatch.question.length > 100 ? '...' : ''), searchQuery) %>
+                                        <% } else if (firstMatch.answer && firstMatch.answer.toLowerCase().includes(searchQuery.toLowerCase())) { %>
+                                            <%- highlighter(firstMatch.answer.substring(0, 100) + (firstMatch.answer.length > 100 ? '...' : ''), searchQuery) %>
+                                        <% } %>
+                                        ...
+                                    </p>
+                                <% } %>
+                            <% } %>
+                        </li>
+                    <% }); %>
+                </ul>
+            <% } else { %>
+                <p>没有找到匹配的聊天记录。 (No matching chat logs found.)</p>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

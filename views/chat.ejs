@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天详情 - <%= session.sessionName || session.sessionId %> (Chat Details)</title>
+    <style>
+        /* (和之前的 CSS 类似，可以复用或单独放在 public/style.css) */
+        /* (Similar to previous CSS, can be reused or put in public/style.css) */
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .search-form { margin-bottom: 20px; display: flex; gap: 10px; }
+        .search-form input[type="text"] { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .search-form button { padding: 10px 15px; background-color: #5cb85c; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+        .search-form button:hover { background-color: #4cae4c; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #337ab7; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
+        .session-title { color: #337ab7; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        .qa-pair { margin-bottom: 20px; padding: 15px; border: 1px solid #f0f0f0; border-radius: 5px; background-color: #fdfdfd; }
+        .question { font-weight: bold; color: #555; background-color: #e9e9e9; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; word-wrap: break-word; }
+        .answer { margin-left: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px; border: 1px solid #eee; }
+        .answer pre { background-color: #eee; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+        .answer code { font-family: monospace; }
+        .answer p, .answer ol, .answer ul { margin-bottom: 1em; }
+        .answer ol, .answer ul { padding-left: 20px; }
+        .answer li { margin-bottom: 0.5em; }
+        .answer strong { font-weight: bold; }
+        mark { background-color: yellow; padding: 0.2em; } /* 高亮样式 */ /* Highlight style */
+    </style>
+    </head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">&larr; 返回列表 (Back to List)</a>
+
+        <h1 class="session-title">聊天: <%= session.sessionName || session.sessionId %> (Chat)</h1>
+
+        <form action="/chat/<%= session.sessionId %>" method="get" class="search-form">
+            <input type="text" name="search" placeholder="在此聊天中搜索... (Search within this chat...)" value="<%= searchQuery %>">
+            <button type="submit">搜索 (Search)</button>
+            <% if (searchQuery) { %>
+                <a href="/chat/<%= session.sessionId %>" class="clear-search-btn" style="padding: 10px 15px; background-color: #f0ad4e; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; line-height: normal; text-align: center;">清除 (Clear)</a>
+            <% } %>
+        </form>
+
+        <hr>
+
+        <% if (records.length > 0) { %>
+            <% records.forEach(record => { %>
+                <div class="qa-pair">
+                    <div class="question">
+                        <strong>问 (Q):</strong>
+                        <div style="white-space: pre-wrap; word-wrap: break-word;"><%- highlighter(record.question || '', searchQuery) %></div>
+                    </div>
+                    <div class="answer">
+                        <strong>答 (A):</strong>
+                        <div><%- highlighter(markdownRenderer(record.answer || ''), searchQuery) %></div>
+                        <%# 注意：在高亮已经渲染的 HTML 时要小心，可能破坏标签 %>
+                        <%# Note: Be careful when highlighting already rendered HTML, might break tags %>
+                        <%# 一个更健壮的方法是在 Markdown 渲染 *之前* 高亮纯文本 %>
+                        <%# A more robust method is to highlight plain text *before* Markdown rendering %>
+                        <%# 或者使用更复杂的客户端 JS 高亮 %>
+                        <%# Or use more complex client-side JS highlighting %>
+                    </div>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <p>在此聊天中没有找到匹配的记录。 (No matching records found in this chat.)</p>
+        <% } %>
+
+    </div>
+</body>
+</html>
