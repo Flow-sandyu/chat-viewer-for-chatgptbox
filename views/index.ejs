@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>聊天记录查看器 - 主页 (Chat Log Viewer - Home)</title>
     <style>
-        /* (和之前的 CSS 类似，可以复用或单独放在 public/style.css) */
-        /* (Similar to previous CSS, can be reused or put in public/style.css) */
+        /* (CSS 样式保持不变) */
+        /* (CSS styles remain the same) */
         body { font-family: sans-serif; line-height: 1.6; padding: 20px; background-color: #f4f4f4; }
         .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         .search-form { margin-bottom: 20px; display: flex; gap: 10px; }
@@ -18,6 +18,31 @@
         .chat-list li:hover { background-color: #f0f0f0; }
         .chat-list a { text-decoration: none; color: #337ab7; font-weight: bold; display: block; }
         .chat-list .chat-id { font-size: 0.9em; color: #777; margin-top: 5px; }
+        /* 更新：预览容器和文本样式 */
+        /* Update: Preview container and text styles */
+        .preview-container {
+            border-top: 1px dashed #ddd;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+        .preview-text {
+            font-size: 0.9em;
+            color: #555;
+            margin-top: 0; /* Reset top margin */
+            margin-bottom: 8px; /* Add bottom margin */
+            word-break: break-all; /* 防止长单词溢出 */ /* Prevent long words from overflowing */
+            line-height: 1.4; /* 调整行高使多行更清晰 */ /* Adjust line height for clarity */
+        }
+         .preview-text:last-child {
+             margin-bottom: 0; /* Remove bottom margin for the last preview item */
+         }
+        .preview-text i { /* 预览标签样式 */ /* Style for the preview label */
+            color: #333;
+            font-style: normal; /* 可选：移除斜体 */ /* Optional: Remove italics */
+            font-weight: bold;
+            display: block; /* 让标签单独占一行 */ /* Make label take its own line */
+            margin-bottom: 3px; /* 标签和内容间距 */ /* Spacing between label and content */
+        }
         mark { background-color: yellow; padding: 0.2em; } /* 高亮样式 */ /* Highlight style */
     </style>
 </head>
@@ -49,21 +74,91 @@
                             </div>
                             <% if (searchQuery) { %>
                                 <%
-                                const firstMatch = session.conversationRecords.find(r =>
-                                    (r.question && r.question.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                                    (r.answer && r.answer.toLowerCase().includes(searchQuery.toLowerCase()))
+                                const lowerCaseQuery = searchQuery.toLowerCase();
+                                // 找到第一个匹配的记录
+                                // Find the first matching record
+                                const firstMatchRecord = session.conversationRecords.find(r =>
+                                    (r.question && r.question.toLowerCase().includes(lowerCaseQuery)) ||
+                                    (r.answer && r.answer.toLowerCase().includes(lowerCaseQuery))
                                 );
+
+                                let questionPreviewHtml = ''; // 初始化问题预览 HTML
+                                let contextPreviewHtml = '';  // 初始化上下文预览 HTML
+
+                                if (firstMatchRecord) {
+                                    // --- 1. 准备问题预览 (总是尝试获取) ---
+                                    // --- 1. Prepare Question Preview (Always try to get) ---
+                                    if (firstMatchRecord.question) {
+                                        const questionLines = firstMatchRecord.question.split('\n');
+                                        let questionSnippet = questionLines.slice(0, 3).join('\n');
+                                        if (questionLines.length > 3) {
+                                            questionSnippet += '...';
+                                        }
+                                        // 高亮问题预览中的关键词
+                                        // Highlight keyword in question preview
+                                        questionPreviewHtml = highlighter(questionSnippet.replace(/\n/g, '<br>'), searchQuery);
+                                    }
+
+                                    // --- 2. 准备上下文预览 (基于实际匹配位置) ---
+                                    // --- 2. Prepare Context Preview (Based on actual match location) ---
+                                    let textToSearch = '';
+                                    // 确定包含关键词的文本
+                                    // Determine text containing the keyword
+                                    if (firstMatchRecord.question && firstMatchRecord.question.toLowerCase().includes(lowerCaseQuery)) {
+                                        textToSearch = firstMatchRecord.question;
+                                    } else if (firstMatchRecord.answer && firstMatchRecord.answer.toLowerCase().includes(lowerCaseQuery)) {
+                                        // 只有当答案包含关键词时，才从答案提取上下文
+                                        // Only extract context from answer if it contains the keyword
+                                        textToSearch = firstMatchRecord.answer;
+                                    }
+                                    // 注意：如果关键词只在问题中，textToSearch 会是问题内容
+                                    // Note: If keyword is only in question, textToSearch will be question content
+
+
+                                    if (textToSearch) {
+                                        const matchIndex = textToSearch.toLowerCase().indexOf(lowerCaseQuery);
+                                        if (matchIndex !== -1) {
+                                            const contextRadius = 80; // 上下文半径
+                                                                      // Context radius
+                                            let startIndex = Math.max(0, matchIndex - contextRadius);
+                                            let endIndex = Math.min(textToSearch.length, matchIndex + lowerCaseQuery.length + contextRadius);
+                                            let contextSnippet = textToSearch.substring(startIndex, endIndex);
+
+                                            // 添加省略号
+                                            // Add ellipses
+                                            if (startIndex > 0) {
+                                                contextSnippet = '...' + contextSnippet;
+                                            }
+                                            if (endIndex < textToSearch.length) {
+                                                contextSnippet = contextSnippet + '...';
+                                            }
+                                            // 高亮上下文预览中的关键词
+                                            // Highlight keyword in context preview
+                                            contextPreviewHtml = highlighter(contextSnippet.replace(/\n/g, '<br>'), searchQuery);
+                                        } else {
+                                             // 降级处理: 如果在 textToSearch 中找不到关键词 (理论上不应发生)
+                                             // Fallback: If keyword not found in textToSearch (shouldn't happen theoretically)
+                                             let fallbackSnippet = textToSearch.substring(0, 150) + (textToSearch.length > 150 ? '...' : '');
+                                             contextPreviewHtml = highlighter(fallbackSnippet.replace(/\n/g, '<br>'), searchQuery);
+                                        }
+                                    }
+                                }
                                 %>
-                                <% if (firstMatch) { %>
-                                    <p style="font-size: 0.9em; color: #555; margin-top: 5px;">
-                                        <i>匹配内容预览 (Match Preview):</i> ...
-                                        <% if (firstMatch.question && firstMatch.question.toLowerCase().includes(searchQuery.toLowerCase())) { %>
-                                            <%- highlighter(firstMatch.question.substring(0, 100) + (firstMatch.question.length > 100 ? '...' : ''), searchQuery) %>
-                                        <% } else if (firstMatch.answer && firstMatch.answer.toLowerCase().includes(searchQuery.toLowerCase())) { %>
-                                            <%- highlighter(firstMatch.answer.substring(0, 100) + (firstMatch.answer.length > 100 ? '...' : ''), searchQuery) %>
+                                <% if (questionPreviewHtml || contextPreviewHtml) { %>
+                                    <div class="preview-container">
+                                        <% if (questionPreviewHtml) { %>
+                                            <p class="preview-text preview-question">
+                                                <i>问题预览 (Question Preview):</i>
+                                                <%- questionPreviewHtml %>
+                                            </p>
                                         <% } %>
-                                        ...
-                                    </p>
+                                        <% if (contextPreviewHtml) { %>
+                                            <p class="preview-text preview-context">
+                                                <i>匹配上下文 (Matching Context):</i>
+                                                <%- contextPreviewHtml %>
+                                            </p>
+                                        <% } %>
+                                    </div>
                                 <% } %>
                             <% } %>
                         </li>
