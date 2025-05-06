@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>聊天记录查看器 - 主页 (Chat Log Viewer - Home)</title>
+    <title>聊天记录查看器 (Chat Log Viewer)</title>
     <style>
-        /* (CSS 样式保持不变) */
-        /* (CSS styles remain the same) */
+        /* (基本样式保持不变，添加上传区域样式) */
+        /* (Basic styles remain, adding styles for upload area) */
         body { font-family: sans-serif; line-height: 1.6; padding: 20px; background-color: #f4f4f4; }
         .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         .search-form { margin-bottom: 20px; display: flex; gap: 10px; }
@@ -18,156 +18,301 @@
         .chat-list li:hover { background-color: #f0f0f0; }
         .chat-list a { text-decoration: none; color: #337ab7; font-weight: bold; display: block; }
         .chat-list .chat-id { font-size: 0.9em; color: #777; margin-top: 5px; }
-        /* 更新：预览容器和文本样式 */
-        /* Update: Preview container and text styles */
-        .preview-container {
-            border-top: 1px dashed #ddd;
+        .preview-container { border-top: 1px dashed #ddd; margin-top: 10px; padding-top: 10px; }
+        .preview-text { font-size: 0.9em; color: #555; margin-top: 0; margin-bottom: 8px; word-break: break-all; line-height: 1.4; }
+        .preview-text:last-child { margin-bottom: 0; }
+        .preview-text i { color: #333; font-style: normal; font-weight: bold; display: block; margin-bottom: 3px; }
+        mark { background-color: yellow; padding: 0.2em; }
+
+        /* --- 上传区域样式 --- */
+        /* --- Upload Area Styles --- */
+        #upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        #upload-area.dragover { /* 拖拽文件悬浮时的样式 */ /* Style when dragging file over */
+            background-color: #e0e0e0;
+            border-color: #aaa;
+        }
+        #upload-area p {
+            margin: 0;
+            color: #666;
+        }
+        #file-input { /* 隐藏原生文件输入框 */ /* Hide native file input */
+            display: none;
+        }
+        #upload-status { /* 上传状态消息 */ /* Upload status message */
             margin-top: 10px;
-            padding-top: 10px;
-        }
-        .preview-text {
-            font-size: 0.9em;
-            color: #555;
-            margin-top: 0; /* Reset top margin */
-            margin-bottom: 8px; /* Add bottom margin */
-            word-break: break-all; /* 防止长单词溢出 */ /* Prevent long words from overflowing */
-            line-height: 1.4; /* 调整行高使多行更清晰 */ /* Adjust line height for clarity */
-        }
-         .preview-text:last-child {
-             margin-bottom: 0; /* Remove bottom margin for the last preview item */
-         }
-        .preview-text i { /* 预览标签样式 */ /* Style for the preview label */
-            color: #333;
-            font-style: normal; /* 可选：移除斜体 */ /* Optional: Remove italics */
             font-weight: bold;
-            display: block; /* 让标签单独占一行 */ /* Make label take its own line */
-            margin-bottom: 3px; /* 标签和内容间距 */ /* Spacing between label and content */
         }
-        mark { background-color: yellow; padding: 0.2em; } /* 高亮样式 */ /* Highlight style */
+        .status-success { color: green; }
+        .status-error { color: red; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>聊天记录查看器 (Chat Log Viewer)</h1>
 
-        <form action="/" method="get" class="search-form">
-            <input type="text" name="search" placeholder="全局搜索聊天名称或内容... (Globally search chat names or content...)" value="<%= searchQuery %>">
-            <button type="submit">全局搜索 (Global Search)</button>
-            <% if (searchQuery) { %>
-                <a href="/" class="clear-search-btn" style="padding: 10px 15px; background-color: #f0ad4e; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; line-height: normal; text-align: center;">清除 (Clear)</a>
-            <% } %>
-        </form>
+        <div id="upload-area">
+            <input type="file" id="file-input" accept=".json"> <p>将你的 `data.json` 文件拖拽到这里，或点击选择文件。</p>
+            <p>Drag your `data.json` file here, or click to select a file.</p>
+            <div id="upload-status"></div> </div>
 
         <hr>
 
-        <h2>所有聊天 (All Chats)</h2>
-        <div class="chat-list">
-            <% if (sessions.length > 0) { %>
-                <ul>
-                    <% sessions.forEach(session => { %>
-                        <li>
-                            <a href="/chat/<%= session.sessionId %>">
-                                <%- highlighter(session.sessionName || '未命名会话 (Unnamed Session)', searchQuery) %>
-                            </a>
-                            <div class="chat-id">
-                                ID: <%- highlighter(session.sessionId, searchQuery) %>
-                            </div>
-                            <% if (searchQuery) { %>
-                                <%
-                                const lowerCaseQuery = searchQuery.toLowerCase();
-                                // 找到第一个匹配的记录
-                                // Find the first matching record
-                                const firstMatchRecord = session.conversationRecords.find(r =>
-                                    (r.question && r.question.toLowerCase().includes(lowerCaseQuery)) ||
-                                    (r.answer && r.answer.toLowerCase().includes(lowerCaseQuery))
-                                );
+        <% if (hasData) { %>
+            <form action="/" method="get" class="search-form">
+                <input type="text" name="search" placeholder="全局搜索聊天名称或内容... (Globally search chat names or content...)" value="<%= searchQuery %>">
+                <button type="submit">全局搜索 (Global Search)</button>
+                <% if (searchQuery) { %>
+                    <a href="/" class="clear-search-btn" style="padding: 10px 15px; background-color: #f0ad4e; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; line-height: normal; text-align: center;">清除 (Clear)</a>
+                <% } %>
+            </form>
 
-                                let questionPreviewHtml = ''; // 初始化问题预览 HTML
-                                let contextPreviewHtml = '';  // 初始化上下文预览 HTML
+            <h2>所有聊天 (All Chats)</h2>
+            <div class="chat-list">
+                <% if (sessions.length > 0) { %>
+                    <ul>
+                        <% sessions.forEach(session => { %>
+                            <li>
+                                <a href="/chat/<%= session.sessionId %>">
+                                    <%- highlighter(session.sessionName || '未命名会话 (Unnamed Session)', searchQuery) %>
+                                </a>
+                                <div class="chat-id">
+                                    ID: <%- highlighter(session.sessionId, searchQuery) %>
+                                </div>
+                                <% if (searchQuery) { %>
+                                    <%
+                                    const lowerCaseQuery = searchQuery.toLowerCase();
+                                    const firstMatchRecord = session.conversationRecords.find(function(r) {
+                                        return (r.question && r.question.toLowerCase().includes(lowerCaseQuery)) ||
+                                               (r.answer && r.answer.toLowerCase().includes(lowerCaseQuery));
+                                    });
 
-                                if (firstMatchRecord) {
-                                    // --- 1. 准备问题预览 (总是尝试获取) ---
-                                    // --- 1. Prepare Question Preview (Always try to get) ---
-                                    if (firstMatchRecord.question) {
-                                        const questionLines = firstMatchRecord.question.split('\n');
-                                        let questionSnippet = questionLines.slice(0, 3).join('\n');
-                                        if (questionLines.length > 3) {
-                                            questionSnippet += '...';
+                                    let questionPreviewHtml = '';
+                                    let contextPreviewHtml = '';
+
+                                    if (firstMatchRecord) {
+                                        // 问题预览逻辑 (3行)
+                                        // Question preview logic (3 lines)
+                                        if (firstMatchRecord.question) {
+                                            const questionLines = firstMatchRecord.question.split('\n');
+                                            let questionSnippet = questionLines.slice(0, 3).join('\n');
+                                            if (questionLines.length > 3) { questionSnippet += '...'; }
+                                            questionPreviewHtml = highlighter(questionSnippet.replace(/\n/g, '<br>'), searchQuery);
                                         }
-                                        // 高亮问题预览中的关键词
-                                        // Highlight keyword in question preview
-                                        questionPreviewHtml = highlighter(questionSnippet.replace(/\n/g, '<br>'), searchQuery);
-                                    }
 
-                                    // --- 2. 准备上下文预览 (基于实际匹配位置) ---
-                                    // --- 2. Prepare Context Preview (Based on actual match location) ---
-                                    let textToSearch = '';
-                                    // 确定包含关键词的文本
-                                    // Determine text containing the keyword
-                                    if (firstMatchRecord.question && firstMatchRecord.question.toLowerCase().includes(lowerCaseQuery)) {
-                                        textToSearch = firstMatchRecord.question;
-                                    } else if (firstMatchRecord.answer && firstMatchRecord.answer.toLowerCase().includes(lowerCaseQuery)) {
-                                        // 只有当答案包含关键词时，才从答案提取上下文
-                                        // Only extract context from answer if it contains the keyword
-                                        textToSearch = firstMatchRecord.answer;
-                                    }
-                                    // 注意：如果关键词只在问题中，textToSearch 会是问题内容
-                                    // Note: If keyword is only in question, textToSearch will be question content
+                                        // 上下文预览逻辑
+                                        // Context preview logic
+                                        let textToSearch = '';
+                                        if (firstMatchRecord.question && firstMatchRecord.question.toLowerCase().includes(lowerCaseQuery)) {
+                                            textToSearch = firstMatchRecord.question;
+                                        } else if (firstMatchRecord.answer && firstMatchRecord.answer.toLowerCase().includes(lowerCaseQuery)) {
+                                            textToSearch = firstMatchRecord.answer;
+                                        }
 
-
-                                    if (textToSearch) {
-                                        const matchIndex = textToSearch.toLowerCase().indexOf(lowerCaseQuery);
-                                        if (matchIndex !== -1) {
-                                            const contextRadius = 80; // 上下文半径
-                                                                      // Context radius
-                                            let startIndex = Math.max(0, matchIndex - contextRadius);
-                                            let endIndex = Math.min(textToSearch.length, matchIndex + lowerCaseQuery.length + contextRadius);
-                                            let contextSnippet = textToSearch.substring(startIndex, endIndex);
-
-                                            // 添加省略号
-                                            // Add ellipses
-                                            if (startIndex > 0) {
-                                                contextSnippet = '...' + contextSnippet;
+                                        if (textToSearch) {
+                                            const matchIndex = textToSearch.toLowerCase().indexOf(lowerCaseQuery);
+                                            if (matchIndex !== -1) {
+                                                const contextRadius = 80;
+                                                let startIndex = Math.max(0, matchIndex - contextRadius);
+                                                let endIndex = Math.min(textToSearch.length, matchIndex + lowerCaseQuery.length + contextRadius);
+                                                let contextSnippet = textToSearch.substring(startIndex, endIndex);
+                                                if (startIndex > 0) { contextSnippet = '...' + contextSnippet; }
+                                                if (endIndex < textToSearch.length) { contextSnippet = contextSnippet + '...'; }
+                                                contextPreviewHtml = highlighter(contextSnippet.replace(/\n/g, '<br>'), searchQuery);
+                                            } else {
+                                                 let fallbackSnippet = textToSearch.substring(0, 150) + (textToSearch.length > 150 ? '...' : '');
+                                                 contextPreviewHtml = highlighter(fallbackSnippet.replace(/\n/g, '<br>'), searchQuery);
                                             }
-                                            if (endIndex < textToSearch.length) {
-                                                contextSnippet = contextSnippet + '...';
-                                            }
-                                            // 高亮上下文预览中的关键词
-                                            // Highlight keyword in context preview
-                                            contextPreviewHtml = highlighter(contextSnippet.replace(/\n/g, '<br>'), searchQuery);
-                                        } else {
-                                             // 降级处理: 如果在 textToSearch 中找不到关键词 (理论上不应发生)
-                                             // Fallback: If keyword not found in textToSearch (shouldn't happen theoretically)
-                                             let fallbackSnippet = textToSearch.substring(0, 150) + (textToSearch.length > 150 ? '...' : '');
-                                             contextPreviewHtml = highlighter(fallbackSnippet.replace(/\n/g, '<br>'), searchQuery);
                                         }
                                     }
-                                }
-                                %>
-                                <% if (questionPreviewHtml || contextPreviewHtml) { %>
-                                    <div class="preview-container">
-                                        <% if (questionPreviewHtml) { %>
-                                            <p class="preview-text preview-question">
-                                                <i>问题预览 (Question Preview):</i>
-                                                <%- questionPreviewHtml %>
-                                            </p>
-                                        <% } %>
-                                        <% if (contextPreviewHtml) { %>
-                                            <p class="preview-text preview-context">
-                                                <i>匹配上下文 (Matching Context):</i>
-                                                <%- contextPreviewHtml %>
-                                            </p>
-                                        <% } %>
-                                    </div>
+                                    %>
+                                    <% if (questionPreviewHtml || contextPreviewHtml) { %>
+                                        <div class="preview-container">
+                                            <% if (questionPreviewHtml) { %>
+                                                <p class="preview-text preview-question">
+                                                    <i>问题预览 (Question Preview):</i>
+                                                    <%- questionPreviewHtml %>
+                                                </p>
+                                            <% } %>
+                                            <% if (contextPreviewHtml) { %>
+                                                <p class="preview-text preview-context">
+                                                    <i>匹配上下文 (Matching Context):</i>
+                                                    <%- contextPreviewHtml %>
+                                                </p>
+                                            <% } %>
+                                        </div>
+                                    <% } %>
                                 <% } %>
-                            <% } %>
-                        </li>
-                    <% }); %>
-                </ul>
-            <% } else { %>
-                <p>没有找到匹配的聊天记录。 (No matching chat logs found.)</p>
-            <% } %>
-        </div>
+                            </li>
+                        <% }); %>
+                    </ul>
+                <% } else if (searchQuery) { %>
+                     <p>在当前加载的数据中没有找到匹配的聊天记录。</p>
+                     <p>No matching chat logs found in the currently loaded data.</p>
+                <% } %>
+            </div>
+        <% } else { %>
+            <p>请通过上方区域上传您的 `data.json` 文件以开始。</p>
+            <p>Please upload your `data.json` file using the area above to get started.</p>
+        <% } %>
+
     </div>
+
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadStatus = document.getElementById('upload-status');
+
+        // --- 事件监听 ---
+        // --- Event Listeners ---
+
+        // 阻止浏览器默认的拖拽行为
+        // Prevent default browser drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false); // 防止拖到页面其他地方打开文件
+                                                                                // Prevent opening file if dropped elsewhere
+        });
+
+        // 处理拖拽悬浮样式
+        // Handle drag hover styles
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+        });
+
+        // 处理文件拖放
+        // Handle file drop
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        // 处理点击上传区域触发文件选择
+        // Handle clicking upload area to trigger file selection
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // 处理文件选择框选择文件
+        // Handle file selection via file input
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        // --- 功能函数 ---
+        // --- Function Definitions ---
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                handleFile(files[0]); // 只处理第一个文件
+                                      // Only process the first file
+            }
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+             // 重置文件输入框，以便可以再次上传同名文件
+             // Reset file input to allow re-uploading the same filename
+             e.target.value = null;
+        }
+
+        function handleFile(file) {
+            // 检查文件类型是否为 JSON
+            // Check if file type is JSON
+            if (!file.type.match('application/json')) {
+                showStatus('错误：请上传有效的 .json 文件。 (Error: Please upload a valid .json file.)', true);
+                return;
+            }
+
+            showStatus('正在读取文件... (Reading file...)');
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                try {
+                    const fileContent = event.target.result;
+                    // 解析 JSON
+                    // Parse JSON
+                    const jsonData = JSON.parse(fileContent);
+                    showStatus('正在上传和处理... (Uploading and processing...)');
+                    // 发送到后端
+                    // Send to backend
+                    uploadData(jsonData);
+                } catch (error) {
+                    console.error('读取或解析 JSON 时出错:', error);
+                    showStatus(`错误：无法读取或解析文件。请确保它是有效的 JSON。 (${error.message})`, true);
+                    showStatus(`Error: Could not read or parse file. Ensure it's valid JSON. (${error.message})`, true);
+                }
+            };
+
+            reader.onerror = function(event) {
+                 console.error("文件读取出错:", event.target.error);
+                 showStatus('错误：读取文件时出错。 (Error: Could not read file.)', true);
+            };
+
+            // 读取文件内容为文本
+            // Read file content as text
+            reader.readAsText(file);
+        }
+
+        function uploadData(jsonData) {
+            fetch('/upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jsonData), // 将 JS 对象转换为 JSON 字符串
+                                                // Convert JS object to JSON string
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // 如果响应状态不是 2xx，则尝试解析错误信息
+                    // If response status is not 2xx, try to parse error message
+                    return response.json().then(err => {
+                        throw new Error(err.message || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json(); // 解析成功的 JSON 响应
+                                        // Parse successful JSON response
+            })
+            .then(data => {
+                console.log('上传成功:', data);
+                showStatus('上传成功！页面即将刷新... (Upload successful! Page will refresh...)', false);
+                // 延迟一小段时间后刷新页面，让用户看到成功消息
+                // Refresh page after a short delay to let user see success message
+                setTimeout(() => {
+                    window.location.reload(); // 刷新页面以显示新数据
+                                              // Reload page to show new data
+                }, 1500);
+            })
+            .catch((error) => {
+                console.error('上传失败:', error);
+                showStatus(`上传失败：${error.message} (Upload failed: ${error.message})`, true);
+            });
+        }
+
+        function showStatus(message, isError = false) {
+            uploadStatus.textContent = message;
+            uploadStatus.className = isError ? 'status-error' : 'status-success'; // 根据是否错误设置样式类
+                                                                                  // Set style class based on error status
+        }
+
+    </script>
+
 </body>
 </html>
